@@ -6,7 +6,17 @@ package frc.robot;
 
 import com.revrobotics.spark.SparkLowLevel;
 import com.revrobotics.spark.SparkMax;
+import com.revrobotics.spark.config.SparkMaxConfig;
+import com.revrobotics.spark.config.SparkBaseConfig.IdleMode;
+import com.revrobotics.spark.SparkBase.ControlType;
+import com.revrobotics.spark.SparkBase.PersistMode;
+import com.revrobotics.spark.SparkBase.ResetMode;
+import com.studica.frc.AHRS;
 
+import edu.wpi.first.math.geometry.Translation2d;
+import edu.wpi.first.math.kinematics.ChassisSpeeds;
+import edu.wpi.first.math.kinematics.MecanumDriveKinematics;
+import edu.wpi.first.math.kinematics.MecanumDriveWheelSpeeds;
 import edu.wpi.first.wpilibj.PS5Controller;
 import edu.wpi.first.wpilibj.TimedRobot;
 import edu.wpi.first.wpilibj.drive.MecanumDrive;
@@ -27,7 +37,12 @@ public class Robot extends TimedRobot {
   private final SendableChooser<String> m_chooser = new SendableChooser<>();
 
   int frontLeft = 1, frontRight = 2, rearLeft = 3, rearRight = 4, outtake = 5;
+  double flSpeed = 0, frSpeed = 0, rlSpeed = 0, rrSpeed = 0;
+  SparkMax flMotor, frMotor, rlMotor, rrMotor;
   MecanumDrive dt;
+  MecanumDriveKinematics kinematics;
+  AHRS gyro;
+
   SparkMax shoot;
 
   PS5Controller driver = new PS5Controller(0);
@@ -42,14 +57,40 @@ public class Robot extends TimedRobot {
     m_chooser.addOption("My Auto", kCustomAuto);
     SmartDashboard.putData("Auto choices", m_chooser);
 
-    SparkMax frontLeftMotor = new SparkMax(frontLeft, SparkLowLevel.MotorType.kBrushless);
-    SparkMax frontRightMotor = new SparkMax(frontRight, SparkLowLevel.MotorType.kBrushless);
-    SparkMax rearLeftMotor = new SparkMax(rearLeft, SparkLowLevel.MotorType.kBrushless);
-    SparkMax rearRightMotor = new SparkMax(rearRight, SparkLowLevel.MotorType.kBrushless);
+    flMotor = new SparkMax(frontLeft, SparkLowLevel.MotorType.kBrushless);
+    frMotor = new SparkMax(frontRight, SparkLowLevel.MotorType.kBrushless);
+    rlMotor = new SparkMax(rearLeft, SparkLowLevel.MotorType.kBrushless);
+    rrMotor = new SparkMax(rearRight, SparkLowLevel.MotorType.kBrushless);
 
-    dt = new MecanumDrive(frontLeftMotor, rearLeftMotor, frontRightMotor, rearRightMotor);
+    SparkMaxConfig config = new SparkMaxConfig();
+    config.smartCurrentLimit(10)
+          .idleMode(IdleMode.kBrake)
+          .closedLoop.maxMotion.maxAcceleration(1000)
+                               .maxVelocity(4000);
+    flMotor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
+    frMotor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
+    rlMotor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
+    rrMotor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
+
+    Translation2d flLocation = new Translation2d(0, 0);
+    Translation2d frLocation = new Translation2d(0, 0);
+    Translation2d rlLocation = new Translation2d(0, 0);
+    Translation2d rrLocation = new Translation2d(0, 0);
+
+    dt = new MecanumDrive(flMotor, rlMotor, frMotor, rrMotor);
+    kinematics = new MecanumDriveKinematics(flLocation, frLocation, rlLocation, rrLocation);
 
     shoot = new SparkMax(outtake, SparkLowLevel.MotorType.kBrushless);
+  }
+
+  public void drive(double xSpeed, double ySpeed, double zRotation){
+    ChassisSpeeds chassisSpeeds = new ChassisSpeeds(xSpeed, ySpeed, zRotation);
+    MecanumDriveWheelSpeeds wheelSpeeds = kinematics.toWheelSpeeds(chassisSpeeds);
+
+    flSpeed = wheelSpeeds.frontLeftMetersPerSecond;
+    frSpeed = wheelSpeeds.frontRightMetersPerSecond;
+    rlSpeed = wheelSpeeds.rearLeftMetersPerSecond;
+    rrSpeed = wheelSpeeds.rearRightMetersPerSecond;
   }
 
   /**
@@ -60,7 +101,17 @@ public class Robot extends TimedRobot {
    * SmartDashboard integrated updating.
    */
   @Override
-  public void robotPeriodic() {}
+  public void robotPeriodic() {
+    flMotor.getClosedLoopController().setReference(flSpeed, ControlType.kMAXMotionVelocityControl);
+    frMotor.getClosedLoopController().setReference(frSpeed, ControlType.kMAXMotionVelocityControl);
+    rlMotor.getClosedLoopController().setReference(rlSpeed, ControlType.kMAXMotionVelocityControl);
+    rrMotor.getClosedLoopController().setReference(rrSpeed, ControlType.kMAXMotionVelocityControl);
+
+    SmartDashboard.putNumber("flVel", flMotor.getEncoder().getVelocity());
+    SmartDashboard.putNumber("frVel", frMotor.getEncoder().getVelocity());
+    SmartDashboard.putNumber("rlVel", rlMotor.getEncoder().getVelocity());
+    SmartDashboard.putNumber("rrVel", rrMotor.getEncoder().getVelocity());
+  }
 
   /**
    * This autonomous (along with the chooser code above) shows how to select between different
@@ -100,7 +151,7 @@ public class Robot extends TimedRobot {
   /** This function is called periodically during operator control. */
   @Override
   public void teleopPeriodic() {
-    dt.driveCartesian(driver.getLeftY(), driver.getLeftX(), driver.getRightX());
+    //dt.driveCartesian(driver.getLeftY(), driver.getLeftX(), driver.getRightX());
 
     if (operator.getR2Button()){
       shoot.set(0.5);
