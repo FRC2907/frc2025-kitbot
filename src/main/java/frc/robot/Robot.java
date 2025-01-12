@@ -17,6 +17,7 @@ import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.math.kinematics.MecanumDriveKinematics;
 import edu.wpi.first.math.kinematics.MecanumDriveWheelSpeeds;
+import edu.wpi.first.math.util.Units;
 import edu.wpi.first.wpilibj.PS5Controller;
 import edu.wpi.first.wpilibj.TimedRobot;
 import edu.wpi.first.wpilibj.drive.MecanumDrive;
@@ -36,7 +37,7 @@ public class Robot extends TimedRobot {
   private String m_autoSelected;
   private final SendableChooser<String> m_chooser = new SendableChooser<>();
 
-  int frontLeft = 1, frontRight = 2, rearLeft = 3, rearRight = 4, outtake = 5;
+  int frontLeft = 1, frontRight = 16, rearLeft = 4, rearRight = 13, outtake = 5;
   double flSpeed = 0, frSpeed = 0, rlSpeed = 0, rrSpeed = 0;
   SparkMax flMotor, frMotor, rlMotor, rrMotor;
   MecanumDrive dt;
@@ -62,35 +63,43 @@ public class Robot extends TimedRobot {
     rlMotor = new SparkMax(rearLeft, SparkLowLevel.MotorType.kBrushless);
     rrMotor = new SparkMax(rearRight, SparkLowLevel.MotorType.kBrushless);
 
-    SparkMaxConfig config = new SparkMaxConfig();
-    config.smartCurrentLimit(10)
+    SparkMaxConfig leftConfig = new SparkMaxConfig();
+    leftConfig.smartCurrentLimit(40)
           .idleMode(IdleMode.kBrake)
-          .closedLoop.maxMotion.maxAcceleration(1000)
+          .inverted(false)
+          .closedLoop.pidf(0.00, 0, 0.00, 0.005)
+                     .maxMotion.maxAcceleration(20)
                                .maxVelocity(4000);
-    flMotor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
-    frMotor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
-    rlMotor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
-    rrMotor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
+    flMotor.configure(leftConfig, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
+    rlMotor.configure(leftConfig, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
 
-    Translation2d flLocation = new Translation2d(0, 0);
-    Translation2d frLocation = new Translation2d(0, 0);
-    Translation2d rlLocation = new Translation2d(0, 0);
-    Translation2d rrLocation = new Translation2d(0, 0);
+    SparkMaxConfig rightConfig = leftConfig;
+    rightConfig.inverted(true);
+    frMotor.configure(rightConfig, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
+    rrMotor.configure(rightConfig, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
+    
 
-    dt = new MecanumDrive(flMotor, rlMotor, frMotor, rrMotor);
+    double wheelBase = 20.25;
+    double trackWidth = 19.5;
+    Translation2d flLocation = new Translation2d(wheelBase / 2, trackWidth / 2);
+    Translation2d frLocation = new Translation2d(wheelBase / 2, -trackWidth / 2);
+    Translation2d rlLocation = new Translation2d(-wheelBase / 2, trackWidth / 2);
+    Translation2d rrLocation = new Translation2d(-wheelBase / 2, -trackWidth / 2);
+
+    //dt = new MecanumDrive(flMotor::set, rlMotor::set, frMotor::set, rrMotor::set);
     kinematics = new MecanumDriveKinematics(flLocation, frLocation, rlLocation, rrLocation);
 
-    shoot = new SparkMax(outtake, SparkLowLevel.MotorType.kBrushless);
+    //shoot = new SparkMax(outtake, SparkLowLevel.MotorType.kBrushless);
   }
 
   public void drive(double xSpeed, double ySpeed, double zRotation){
-    ChassisSpeeds chassisSpeeds = new ChassisSpeeds(xSpeed, ySpeed, zRotation);
+    ChassisSpeeds chassisSpeeds = new ChassisSpeeds(xSpeed, ySpeed, zRotation / 10);
     MecanumDriveWheelSpeeds wheelSpeeds = kinematics.toWheelSpeeds(chassisSpeeds);
 
-    flSpeed = wheelSpeeds.frontLeftMetersPerSecond;
-    frSpeed = wheelSpeeds.frontRightMetersPerSecond;
-    rlSpeed = wheelSpeeds.rearLeftMetersPerSecond;
-    rrSpeed = wheelSpeeds.rearRightMetersPerSecond;
+    flSpeed = Util.metersPerSecondToRPM(wheelSpeeds.frontLeftMetersPerSecond, Units.inchesToMeters(6));
+    frSpeed = Util.metersPerSecondToRPM(wheelSpeeds.frontRightMetersPerSecond, Units.inchesToMeters(6));
+    rlSpeed = Util.metersPerSecondToRPM(wheelSpeeds.rearLeftMetersPerSecond, Units.inchesToMeters(6));
+    rrSpeed = Util.metersPerSecondToRPM(wheelSpeeds.rearRightMetersPerSecond, Units.inchesToMeters(6));
   }
 
   /**
@@ -102,15 +111,23 @@ public class Robot extends TimedRobot {
    */
   @Override
   public void robotPeriodic() {
+    /*drive(- driver.getLeftY(), - driver.getLeftX(), - driver.getRightX());
+    
     flMotor.getClosedLoopController().setReference(flSpeed, ControlType.kMAXMotionVelocityControl);
     frMotor.getClosedLoopController().setReference(frSpeed, ControlType.kMAXMotionVelocityControl);
     rlMotor.getClosedLoopController().setReference(rlSpeed, ControlType.kMAXMotionVelocityControl);
-    rrMotor.getClosedLoopController().setReference(rrSpeed, ControlType.kMAXMotionVelocityControl);
+    rrMotor.getClosedLoopController().setReference(rrSpeed, ControlType.kMAXMotionVelocityControl);*/
+
+    flMotor.set(-0.2);
 
     SmartDashboard.putNumber("flVel", flMotor.getEncoder().getVelocity());
     SmartDashboard.putNumber("frVel", frMotor.getEncoder().getVelocity());
     SmartDashboard.putNumber("rlVel", rlMotor.getEncoder().getVelocity());
     SmartDashboard.putNumber("rrVel", rrMotor.getEncoder().getVelocity());
+    SmartDashboard.putNumber("flSetPoint", flSpeed);
+    SmartDashboard.putNumber("frSetPoint", frSpeed);
+    SmartDashboard.putNumber("rlSetPoint", rlSpeed);
+    SmartDashboard.putNumber("rrSetPoint", rrSpeed);
   }
 
   /**
