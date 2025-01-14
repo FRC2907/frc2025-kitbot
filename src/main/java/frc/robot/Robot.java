@@ -37,14 +37,17 @@ public class Robot extends TimedRobot {
   private String m_autoSelected;
   private final SendableChooser<String> m_chooser = new SendableChooser<>();
 
-  int frontLeft = 1, frontRight = 16, rearLeft = 4, rearRight = 13, outtake = 5;
+  int frontLeft = 13, frontRight = 4, rearLeft = 16, rearRight = 1, outtake = 5;
   double flSpeed = 0, frSpeed = 0, rlSpeed = 0, rrSpeed = 0;
-  SparkMax flMotor, frMotor, rlMotor, rrMotor;
+  SparkMax flMotor, frMotor, rlMotor, rrMotor, shoot;
   MecanumDrive dt;
   MecanumDriveKinematics kinematics;
   AHRS gyro;
+  double flFF = 0.000168,
+         frFF = 0.000161,
+         rlFF = 0.000167,
+         rrFF = 0.000167;
 
-  SparkMax shoot;
 
   PS5Controller driver = new PS5Controller(0);
   PS5Controller operator = new PS5Controller(1);
@@ -63,23 +66,26 @@ public class Robot extends TimedRobot {
     rlMotor = new SparkMax(rearLeft, SparkLowLevel.MotorType.kBrushless);
     rrMotor = new SparkMax(rearRight, SparkLowLevel.MotorType.kBrushless);
 
-    SparkMaxConfig leftConfig = new SparkMaxConfig();
-    leftConfig.smartCurrentLimit(40)
+    SparkMaxConfig config = new SparkMaxConfig();
+    config.smartCurrentLimit(40)
           .idleMode(IdleMode.kBrake)
           .inverted(false)
-          .closedLoop.pidf(0.00, 0, 0.00, 0.005)
-                     .maxMotion.maxAcceleration(20)
-                               .maxVelocity(4000);
-    flMotor.configure(leftConfig, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
-    rlMotor.configure(leftConfig, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
+          .closedLoop.velocityFF(flFF)
+                     .maxMotion.maxAcceleration(1000)
+                               .maxVelocity(5600);
+    flMotor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
+    config.apply(new SparkMaxConfig().closedLoop.velocityFF(rlFF));
+    rlMotor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
 
-    SparkMaxConfig rightConfig = leftConfig;
-    rightConfig.inverted(true);
-    frMotor.configure(rightConfig, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
-    rrMotor.configure(rightConfig, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
+    config.apply(new SparkMaxConfig().inverted(true));
+
+    config.apply(new SparkMaxConfig().closedLoop.velocityFF(frFF));
+    frMotor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
+    config.apply(new SparkMaxConfig().closedLoop.velocityFF(rrFF));
+    rrMotor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
     
 
-    double wheelBase = 20.25;
+    double wheelBase = 20.875;
     double trackWidth = 19.5;
     Translation2d flLocation = new Translation2d(wheelBase / 2, trackWidth / 2);
     Translation2d frLocation = new Translation2d(wheelBase / 2, -trackWidth / 2);
@@ -92,14 +98,23 @@ public class Robot extends TimedRobot {
     //shoot = new SparkMax(outtake, SparkLowLevel.MotorType.kBrushless);
   }
 
-  public void drive(double xSpeed, double ySpeed, double zRotation){
-    ChassisSpeeds chassisSpeeds = new ChassisSpeeds(xSpeed, ySpeed, zRotation / 10);
-    MecanumDriveWheelSpeeds wheelSpeeds = kinematics.toWheelSpeeds(chassisSpeeds);
+  public void drive(double xSpeed, double ySpeed, double zRotation, boolean fieldRelative){
+    ChassisSpeeds chassisSpeeds = new ChassisSpeeds(xSpeed, ySpeed, zRotation);
+    MecanumDriveWheelSpeeds wheelSpeeds = fieldRelative 
+    ? kinematics.toWheelSpeeds(ChassisSpeeds.fromRobotRelativeSpeeds(chassisSpeeds, gyro.getRotation2d()))
+    : kinematics.toWheelSpeeds(chassisSpeeds);
 
     flSpeed = Util.metersPerSecondToRPM(wheelSpeeds.frontLeftMetersPerSecond, Units.inchesToMeters(6));
     frSpeed = Util.metersPerSecondToRPM(wheelSpeeds.frontRightMetersPerSecond, Units.inchesToMeters(6));
     rlSpeed = Util.metersPerSecondToRPM(wheelSpeeds.rearLeftMetersPerSecond, Units.inchesToMeters(6));
     rrSpeed = Util.metersPerSecondToRPM(wheelSpeeds.rearRightMetersPerSecond, Units.inchesToMeters(6));
+  }
+
+  public void test(){
+    flSpeed = 2800;
+    frSpeed = 2800;
+    rlSpeed = 2800;
+    rrSpeed = 2800;
   }
 
   /**
@@ -111,14 +126,13 @@ public class Robot extends TimedRobot {
    */
   @Override
   public void robotPeriodic() {
-    /*drive(- driver.getLeftY(), - driver.getLeftX(), - driver.getRightX());
+    drive(- driver.getLeftY() * 7.6124, - driver.getLeftX() * 7.6124, - driver.getRightX() * 7.6124, false);
+    //test();
     
     flMotor.getClosedLoopController().setReference(flSpeed, ControlType.kMAXMotionVelocityControl);
     frMotor.getClosedLoopController().setReference(frSpeed, ControlType.kMAXMotionVelocityControl);
     rlMotor.getClosedLoopController().setReference(rlSpeed, ControlType.kMAXMotionVelocityControl);
-    rrMotor.getClosedLoopController().setReference(rrSpeed, ControlType.kMAXMotionVelocityControl);*/
-
-    flMotor.set(-0.2);
+    rrMotor.getClosedLoopController().setReference(rrSpeed, ControlType.kMAXMotionVelocityControl);
 
     SmartDashboard.putNumber("flVel", flMotor.getEncoder().getVelocity());
     SmartDashboard.putNumber("frVel", frMotor.getEncoder().getVelocity());
