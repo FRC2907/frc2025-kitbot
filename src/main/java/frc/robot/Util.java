@@ -42,9 +42,9 @@ public class Util {
         return value;
     }
 
-    /*public static boolean checkDriverDeadband(double value){
-        return Math.abs(value) > Control.kDriverDeadband;
-    }*/
+    public static boolean checkDriverDeadband(double value){
+        return Math.abs(value) > 0.08;
+    }
     public static double getLeftMagnitude(PS5Controller input){
         return Math.sqrt(Math.pow(input.getLeftX(), 2.0) + Math.pow(input.getLeftY(), 2.0));
     }
