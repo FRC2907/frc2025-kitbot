@@ -56,14 +56,14 @@ public class Robot extends TimedRobot {
   MecanumDriveKinematics kinematics;
   AHRS gyro;
   double //flFF = 0.000168,
-         flFF = 0.002114,
+         flFF = 0.000168,
          frFF = 0.000161,
          rlFF = 0.000168420,
          rrFF = 0.000167;
-  double flP = 0.00,
-         frP = 0.00,
-         rlP = 0.00,
-         rrP = 0.00;
+  double flP = 5e-5,
+         frP = 5e-5,
+         rlP = 5e-5,
+         rrP = 5e-5;
   ProfiledPIDController flPID, frPID, rlPID, rrPID;
   ElevatorFeedforward flFFC;
 
@@ -89,16 +89,17 @@ public class Robot extends TimedRobot {
     shoot = new SparkMax(outtake, MotorType.kBrushed);
 
     SparkMaxConfig config = new SparkMaxConfig();
+    config.apply(new EncoderConfig().positionConversionFactor(Units.inchesToMeters(6) * Math.PI / 5.95));
+    config.apply(new EncoderConfig().velocityConversionFactor(Util.RPMToMetersPerSecond(1, Units.inchesToMeters(6)) / 5.95));
     config.smartCurrentLimit(40)
           .idleMode(IdleMode.kBrake)
           .inverted(false)
+          .closedLoopRampRate(0.1)
           .closedLoop.pidf(flP, 0, 0, flFF)
-                     .maxMotion.maxAcceleration(4000)
-                               .maxVelocity(4000)
-                               .allowedClosedLoopError(0.05)
+                     .maxMotion.maxAcceleration(100000)
+                               .maxVelocity(100000)
+                               .allowedClosedLoopError(0.005)
                                .positionMode(MAXMotionPositionMode.kMAXMotionTrapezoidal);
-    config.apply(new EncoderConfig().positionConversionFactor(Units.inchesToMeters(6) * Math.PI / 5.95));
-    config.apply(new EncoderConfig().velocityConversionFactor(Util.RPMToMetersPerSecond(1, Units.inchesToMeters(6)) / 5.95));
 
     flMotor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
     config.apply(new SparkMaxConfig().closedLoop.pidf(rlP, 0, 0, rlFF));
@@ -140,13 +141,13 @@ public class Robot extends TimedRobot {
 
     timer = new Timer();
 
-    /**/
+    /*
     flPID = new ProfiledPIDController(flP, 0, 0, new TrapezoidProfile.Constraints(50, 100));
     flFFC = new ElevatorFeedforward(0, 0, 1/5676, 0);
     frPID = new ProfiledPIDController(frP, 0, 0, new TrapezoidProfile.Constraints(5, 1));
     rlPID = new ProfiledPIDController(rlP, 0, 0, new TrapezoidProfile.Constraints(5, 1));
     rrPID = new ProfiledPIDController(rrP, 0, 0, new TrapezoidProfile.Constraints(5, 1));
-    /*/
+    /
     flPID = new PIDController(flP, 0, 0);
     frPID = new PIDController(frP, 0, 0);
     rlPID = new PIDController(rlP, 0, 0);
