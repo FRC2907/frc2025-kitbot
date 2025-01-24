@@ -9,12 +9,10 @@ import com.revrobotics.spark.SparkBase.PersistMode;
 import com.revrobotics.spark.SparkBase.ResetMode;
 import com.revrobotics.spark.SparkLowLevel.MotorType;
 import com.revrobotics.RelativeEncoder;
-import com.revrobotics.spark.SparkLowLevel;
 import com.revrobotics.spark.SparkMax;
-import com.revrobotics.spark.config.SparkBaseConfig.IdleMode;
-import com.revrobotics.spark.config.EncoderConfig;
-import com.revrobotics.spark.config.SparkMaxConfig;
+import com.revrobotics.spark.config.*;
 import com.revrobotics.spark.config.MAXMotionConfig.MAXMotionPositionMode;
+import com.revrobotics.spark.config.SparkBaseConfig.IdleMode;
 import com.studica.frc.AHRS;
 import com.studica.frc.AHRS.NavXComType;
 
@@ -22,6 +20,7 @@ import edu.wpi.first.math.controller.ElevatorFeedforward;
 import edu.wpi.first.math.controller.PIDController;
 import edu.wpi.first.math.controller.ProfiledPIDController;
 import edu.wpi.first.math.controller.SimpleMotorFeedforward;
+import edu.wpi.first.math.filter.SlewRateLimiter;
 import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.math.kinematics.MecanumDriveKinematics;
@@ -55,15 +54,16 @@ public class Robot extends TimedRobot {
   MecanumDrive dt;
   MecanumDriveKinematics kinematics;
   AHRS gyro;
+  SlewRateLimiter xLimiter, yLimiter, rotLimiter;
   double //flFF = 0.000168,
          flFF = 0.000158,
          frFF = 0.000149,
          rlFF = 0.000158420,
          rrFF = 0.000156;
-  double flP = 1e-5,
-         frP = 1e-5,
-         rlP = 1e-5,
-         rrP = 1e-5;
+  double flP = 4e-7,
+         frP = 4e-7,
+         rlP = 4e-7,
+         rrP = 4e-7;
   double flI = 1e-7,
          frI = 1e-7,
          rlI = 1e-7,
@@ -107,8 +107,8 @@ public class Robot extends TimedRobot {
           .closedLoop.pidf(flP, flI, flD, flFF)
                      .maxMotion.maxAcceleration(4000)
                                .maxVelocity(4000)
-                               .allowedClosedLoopError(0.005);
-                               //.positionMode(MAXMotionPositionMode.kMAXMotionTrapezoidal); 
+                               .allowedClosedLoopError(0.005)
+                               .positionMode(MAXMotionPositionMode.kMAXMotionTrapezoidal); 
 
     flMotor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
     config.apply(new SparkMaxConfig().closedLoop.pidf(rlP, rlI, rlD, rlFF));
@@ -134,8 +134,8 @@ public class Robot extends TimedRobot {
     rlFeed = new SimpleMotorFeedforward(flFF, kDefaultPeriod);
     rrFeed = new SimpleMotorFeedforward(flFF, kDefaultPeriod);*/
 
-    double wheelBase = 20.75;
-    double trackWidth = 19.5;
+    double wheelBase = Units.inchesToMeters(20.75);
+    double trackWidth = Units.inchesToMeters(19.5);
     Translation2d flLocation = new Translation2d(wheelBase / 2, trackWidth / 2);
     Translation2d frLocation = new Translation2d(wheelBase / 2, -trackWidth / 2);
     Translation2d rlLocation = new Translation2d(-wheelBase / 2, trackWidth / 2);
@@ -167,33 +167,36 @@ public class Robot extends TimedRobot {
     frEnc.setPosition(0);
     rlEnc.setPosition(0);
     rrEnc.setPosition(0);
+
+    xLimiter = new SlewRateLimiter(10);
+    yLimiter = new SlewRateLimiter(10);
+    rotLimiter = new SlewRateLimiter(10);
   }
 
-  public void drive(double xSpeed, double ySpeed, double zRotation, boolean fieldRelative){
-    /*double xSpeed = - (Util.checkDriverDeadband(driver.getLeftY()) ? driver.getLeftY() * 28.6124 : 0); 
-    double ySpeed = - (Util.checkDriverDeadband(driver.getLeftX()) ? driver.getLeftX() * 28.6124 : 0);
-    //- (Util.checkDriverDeadband(driver.getLeftX()) ? Math.pow(driver.getLeftX(), 1) * 14.6124 : 0);
-    double zRotation = - (driver.getRightX());
-    boolean fieldRelative = false;*/
+  public void drive(double xSpeed, double ySpeed, double zRotation, boolean fieldRelative, double periodSeconds){
     ChassisSpeeds chassisSpeeds = new ChassisSpeeds(xSpeed, ySpeed, zRotation);
-    MecanumDriveWheelSpeeds wheelSpeeds = fieldRelative 
-    ? kinematics.toWheelSpeeds(ChassisSpeeds.fromRobotRelativeSpeeds(chassisSpeeds, gyro.getRotation2d()))
-    : kinematics.toWheelSpeeds(chassisSpeeds);
+    MecanumDriveWheelSpeeds wheelSpeeds = kinematics.toWheelSpeeds(ChassisSpeeds.discretize(
+        fieldRelative ? ChassisSpeeds.fromFieldRelativeSpeeds(chassisSpeeds, gyro.getRotation2d())
+                      : chassisSpeeds,
+      periodSeconds
+      )
+    );
+    wheelSpeeds.desaturate(7);
 
     flSpeed = Util.metersPerSecondToRPM(wheelSpeeds.frontLeftMetersPerSecond, Units.inchesToMeters(6));
     frSpeed = Util.metersPerSecondToRPM(wheelSpeeds.frontRightMetersPerSecond, Units.inchesToMeters(6));
     rlSpeed = Util.metersPerSecondToRPM(wheelSpeeds.rearLeftMetersPerSecond, Units.inchesToMeters(6));
     rrSpeed = Util.metersPerSecondToRPM(wheelSpeeds.rearRightMetersPerSecond, Units.inchesToMeters(6));
 
-    /*if (Math.abs(driver.getLeftY()) < 0.4 && Math.abs(driver.getLeftX()) > 0.5){
+    if (Math.abs(xSpeed) < 2.8 && Math.abs(ySpeed) > 3.5){
       frSpeed = - flSpeed;
       rlSpeed = - rrSpeed;
     }
 
-    if (Math.abs(driver.getLeftX()) < 0.3 && Math.abs(driver.getLeftY()) > 0.5){
+    if (Math.abs(ySpeed) < 2.1 && Math.abs(xSpeed) > 3.5){
       frSpeed = flSpeed;
       rlSpeed = rrSpeed;
-    }*/
+    }
   }
 
   /*public void driveYeah(){
@@ -228,6 +231,10 @@ public class Robot extends TimedRobot {
     frSpeed = 0;
     rlSpeed = 0;
     rrSpeed = 0;
+    /*flMotor.stopMotor();
+    frMotor.stopMotor();
+    rlMotor.stopMotor();
+    rrMotor.stopMotor();*/
   }
 
   /**
@@ -239,23 +246,24 @@ public class Robot extends TimedRobot {
    */
   @Override
   public void robotPeriodic() {
-    /*if (Util.checkDriverDeadband(driver.getLeftY()) || Util.checkDriverDeadband(driver.getLeftX()) || Util.checkDriverDeadband(driver.getRightX())){
+    if (Util.checkDriverDeadband(driver.getLeftY()) || Util.checkDriverDeadband(driver.getLeftX()) || Util.checkDriverDeadband(driver.getRightX())){
       drive(
-        - driver.getLeftY() * 1.5 ,
-        - driver.getLeftX() * 1.5,
-        - driver.getRightX() * 0.5,
-        true
+        - yLimiter.calculate(driver.getLeftY()) * 7,
+        - xLimiter.calculate(driver.getLeftX()) * 7,
+        - rotLimiter.calculate(driver.getRightX()) * 5,
+        false,
+        getPeriod()
       );
-    } else { stop(); }*/
+    } else { stop(); }
     //test();
     //dt.driveCartesian(driver.getLeftY(), - driver.getLeftX(), driver.getRightX());*/
     
     //flMotor.setVoltage(1.57);
 
-    flMotor.getClosedLoopController().setReference(1000, ControlType.kMAXMotionVelocityControl);
-    frMotor.getClosedLoopController().setReference(1000, ControlType.kMAXMotionVelocityControl);
-    rlMotor.getClosedLoopController().setReference(1000, ControlType.kMAXMotionVelocityControl);
-    rrMotor.getClosedLoopController().setReference(1000, ControlType.kMAXMotionVelocityControl);
+    flMotor.getClosedLoopController().setReference(flSpeed, ControlType.kMAXMotionVelocityControl);
+    frMotor.getClosedLoopController().setReference(frSpeed, ControlType.kMAXMotionVelocityControl);
+    rlMotor.getClosedLoopController().setReference(rlSpeed, ControlType.kMAXMotionVelocityControl);
+    rrMotor.getClosedLoopController().setReference(rrSpeed, ControlType.kMAXMotionVelocityControl);
 
     /*flPID.setGoal(1000);
     //flMotor.setVoltage(flPID.calculate(flEnc.getVelocity()) + flFFC.calculate(flPID.getSetpoint().position));
@@ -335,39 +343,39 @@ public class Robot extends TimedRobot {
     
 
     if (timer.get() <= 3 && timer.get() >= 1){
-      drive(0, -0.5, 0, false);
+      drive(0, -0.5, 0, false, getPeriod());
     }
     if (timer.get() > 3 && timer.get() < 5){
       stop();
     }
     if (timer.get() <= 7 && timer.get() >= 5){
-      drive(0, 0.5, 0, false);
+      drive(0, 0.5, 0, false, getPeriod());
     }
     if (timer.get() > 7){
       stop();
     }
 
     if (timer.get() <= 10 && timer.get() >= 8){
-      drive(0, -0.5, 0, false);
+      drive(0, -0.5, 0, false, getPeriod());
     }
     if (timer.get() > 10 && timer.get() < 12){
       stop();
     }
     if (timer.get() >= 12 && timer.get() <= 14){
-      drive(0, 0.5, 0, false);
+      drive(0, 0.5, 0, false, getPeriod());
     }
     if (timer.get() > 14){
       stop();
     }
 
     if (timer.get() <= 17 && timer.get() >= 15){
-      drive(0, -0.5, 0, false);
+      drive(0, -0.5, 0, false, getPeriod());
     }
     if (timer.get() > 17 && timer.get() < 19){
       stop();
     }
     if (timer.get() >= 19 && timer.get() <= 21){
-      drive(0, 0.5, 0, false);
+      drive(0, 0.5, 0, false, getPeriod());
     }
     if (timer.get() > 21){
       stop();
