@@ -56,14 +56,23 @@ public class Robot extends TimedRobot {
   MecanumDriveKinematics kinematics;
   AHRS gyro;
   double //flFF = 0.000168,
-         flFF = 0.000168,
-         frFF = 0.000161,
-         rlFF = 0.000168420,
-         rrFF = 0.000167;
-  double flP = 5e-5,
-         frP = 5e-5,
-         rlP = 5e-5,
-         rrP = 5e-5;
+         flFF = 0.000158,
+         frFF = 0.000149,
+         rlFF = 0.000158420,
+         rrFF = 0.000156;
+  double flP = 1e-5,
+         frP = 1e-5,
+         rlP = 1e-5,
+         rrP = 1e-5;
+  double flI = 1e-7,
+         frI = 1e-7,
+         rlI = 1e-7,
+         rrI = 1e-7;
+  double flD = 3,
+         frD = 3,
+         rlD = 3,
+         rrD = 3;
+
   ProfiledPIDController flPID, frPID, rlPID, rrPID;
   ElevatorFeedforward flFFC;
 
@@ -89,27 +98,27 @@ public class Robot extends TimedRobot {
     shoot = new SparkMax(outtake, MotorType.kBrushed);
 
     SparkMaxConfig config = new SparkMaxConfig();
-    config.apply(new EncoderConfig().positionConversionFactor(Units.inchesToMeters(6) * Math.PI / 5.95));
-    config.apply(new EncoderConfig().velocityConversionFactor(Util.RPMToMetersPerSecond(1, Units.inchesToMeters(6)) / 5.95));
+    /*config.apply(new EncoderConfig().positionConversionFactor(Units.inchesToMeters(6) * Math.PI / 5.95));
+    config.apply(new EncoderConfig().velocityConversionFactor(0.1524 / Math.PI * 60));  */
     config.smartCurrentLimit(40)
           .idleMode(IdleMode.kBrake)
           .inverted(false)
           .closedLoopRampRate(0.1)
-          .closedLoop.pidf(flP, 0, 0, flFF)
-                     .maxMotion.maxAcceleration(100000)
-                               .maxVelocity(100000)
-                               .allowedClosedLoopError(0.005)
-                               .positionMode(MAXMotionPositionMode.kMAXMotionTrapezoidal);
+          .closedLoop.pidf(flP, flI, flD, flFF)
+                     .maxMotion.maxAcceleration(4000)
+                               .maxVelocity(4000)
+                               .allowedClosedLoopError(0.005);
+                               //.positionMode(MAXMotionPositionMode.kMAXMotionTrapezoidal); 
 
     flMotor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
-    config.apply(new SparkMaxConfig().closedLoop.pidf(rlP, 0, 0, rlFF));
+    config.apply(new SparkMaxConfig().closedLoop.pidf(rlP, rlI, rlD, rlFF));
     rlMotor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
 
     config.apply(new SparkMaxConfig().inverted(true));
 
-    config.apply(new SparkMaxConfig().closedLoop.pidf(frP, 0, 0, frFF));
+    config.apply(new SparkMaxConfig().closedLoop.pidf(frP, frI, frD, frFF));
     frMotor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
-    config.apply(new SparkMaxConfig().closedLoop.pidf(rrP, 0, 0, rrFF));
+    config.apply(new SparkMaxConfig().closedLoop.pidf(rrP, rrI, rrD, rrFF));
     rrMotor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
 
     config.apply(new SparkMaxConfig().inverted(false));
@@ -173,8 +182,8 @@ public class Robot extends TimedRobot {
 
     flSpeed = Util.metersPerSecondToRPM(wheelSpeeds.frontLeftMetersPerSecond, Units.inchesToMeters(6));
     frSpeed = Util.metersPerSecondToRPM(wheelSpeeds.frontRightMetersPerSecond, Units.inchesToMeters(6));
-    rlSpeed = (Util.metersPerSecondToRPM(wheelSpeeds.rearLeftMetersPerSecond, Units.inchesToMeters(6)));
-    rrSpeed = (Util.metersPerSecondToRPM(wheelSpeeds.rearRightMetersPerSecond, Units.inchesToMeters(6)));
+    rlSpeed = Util.metersPerSecondToRPM(wheelSpeeds.rearLeftMetersPerSecond, Units.inchesToMeters(6));
+    rrSpeed = Util.metersPerSecondToRPM(wheelSpeeds.rearRightMetersPerSecond, Units.inchesToMeters(6));
 
     /*if (Math.abs(driver.getLeftY()) < 0.4 && Math.abs(driver.getLeftX()) > 0.5){
       frSpeed = - flSpeed;
@@ -238,15 +247,15 @@ public class Robot extends TimedRobot {
         true
       );
     } else { stop(); }*/
-    test();
+    //test();
     //dt.driveCartesian(driver.getLeftY(), - driver.getLeftX(), driver.getRightX());*/
     
     //flMotor.setVoltage(1.57);
 
-    flMotor.getClosedLoopController().setReference(10, ControlType.kMAXMotionPositionControl);
-    frMotor.getClosedLoopController().setReference(10, ControlType.kMAXMotionPositionControl);
-    rlMotor.getClosedLoopController().setReference(10, ControlType.kMAXMotionPositionControl);
-    rrMotor.getClosedLoopController().setReference(10, ControlType.kMAXMotionPositionControl);
+    flMotor.getClosedLoopController().setReference(1000, ControlType.kMAXMotionVelocityControl);
+    frMotor.getClosedLoopController().setReference(1000, ControlType.kMAXMotionVelocityControl);
+    rlMotor.getClosedLoopController().setReference(1000, ControlType.kMAXMotionVelocityControl);
+    rrMotor.getClosedLoopController().setReference(1000, ControlType.kMAXMotionVelocityControl);
 
     /*flPID.setGoal(1000);
     //flMotor.setVoltage(flPID.calculate(flEnc.getVelocity()) + flFFC.calculate(flPID.getSetpoint().position));
