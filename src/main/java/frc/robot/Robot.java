@@ -181,7 +181,7 @@ public class Robot extends TimedRobot {
       periodSeconds
       )
     );
-    wheelSpeeds.desaturate(7);
+    wheelSpeeds.desaturate(14);
 
     flSpeed = Util.metersPerSecondToRPM(wheelSpeeds.frontLeftMetersPerSecond, Units.inchesToMeters(6));
     frSpeed = Util.metersPerSecondToRPM(wheelSpeeds.frontRightMetersPerSecond, Units.inchesToMeters(6));
@@ -209,21 +209,10 @@ public class Robot extends TimedRobot {
   }*/
 
   public void test(){
-    //flSpeed = 0.5;
-    //frSpeed = 1000;
-    //rlSpeed = 0.5;
-    //rrSpeed = 1000;
-
-    /*flPID.setGoal(5 * 5.95);
-    frPID.setGoal(5 * 5.95);
-    rlPID.setGoal(5 * 5.95);
-    rrPID.setGoal(5 * 5.95);*/
-    /*flPID.setSetpoint(0.5);
-    frPID.setSetpoint(0.5);
-    rlPID.setSetpoint(0.5);
-    rrPID.setSetpoint(0.5);*/
-
-
+    flSpeed = 500;
+    frSpeed = 500;
+    rlSpeed = 500;
+    rrSpeed = 500;
   }
 
   public void stop(){
@@ -248,9 +237,9 @@ public class Robot extends TimedRobot {
   public void robotPeriodic() {
     if (Util.checkDriverDeadband(driver.getLeftY()) || Util.checkDriverDeadband(driver.getLeftX()) || Util.checkDriverDeadband(driver.getRightX())){
       drive(
-        - yLimiter.calculate(driver.getLeftY()) * 7,
-        - xLimiter.calculate(driver.getLeftX()) * 7,
-        - rotLimiter.calculate(driver.getRightX()) * 5,
+        - yLimiter.calculate(driver.getLeftY()) * 14,
+        - xLimiter.calculate(driver.getLeftX()) * 14,
+        - rotLimiter.calculate(driver.getRightX()) * 10,
         false,
         getPeriod()
       );
@@ -300,10 +289,10 @@ public class Robot extends TimedRobot {
     SmartDashboard.putNumber("frPosition", frEnc.getPosition());
     SmartDashboard.putNumber("rlPosition", rlEnc.getPosition());
     SmartDashboard.putNumber("rrPosition", rrEnc.getPosition());
-    SmartDashboard.putNumber("flSetPoint", flSpeed * 5.95);
-    SmartDashboard.putNumber("frSetPoint", frSpeed * 5.95);
-    SmartDashboard.putNumber("rlSetPoint", rlSpeed * 5.95);
-    SmartDashboard.putNumber("rrSetPoint", rrSpeed * 5.95);
+    SmartDashboard.putNumber("flSetPoint", flSpeed );
+    SmartDashboard.putNumber("frSetPoint", frSpeed);
+    SmartDashboard.putNumber("rlSetPoint", rlSpeed);
+    SmartDashboard.putNumber("rrSetPoint", rrSpeed);
     SmartDashboard.putNumber("xSpeed", driver.getLeftY());
     SmartDashboard.putNumber("timer", timer.get());
     SmartDashboard.putNumber("gyro", gyro.getAngle() % 360);
